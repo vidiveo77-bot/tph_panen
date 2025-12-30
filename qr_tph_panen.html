@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panen TBS - QR TPH & QR Panen</title>
+
+<!-- QR SCANNER -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<!-- QR GENERATOR -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+
+
+<script>
+function printQRPanen(){
+  if(!qrPrint.innerHTML){
+    alert("QR Panen belum dibuat!");
+    return;
+  }
+  window.print();
+}
+</script>
+
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background:#f4f6f8;
+  padding:10px;
+}
+.box {
+  background:#fff;
+  padding:14px;
+  border-radius:8px;
+  max-width:420px;
+  margin:auto;
+}
+h3 { margin-top:0 }
+button, input {
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  font-size:14px;
+}
+#reader { margin-top:10px }
+.status { font-size:13px; margin-top:5px }
+table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:12px;
+  margin-top:10px;
+}
+th, td {
+  border:1px solid #ccc;
+  padding:4px;
+  text-align:center;
+}
+#qrPanen { margin-top:10px; text-align:center }
+
+/* PRINT FIX */
+@media print {
+  body * { display:none !important; }
+  #printArea, #printArea * { display:block !important; }
+  #printArea {
+    position:absolute;
+    top:0; left:0;
+    width:100%;
+    text-align:center;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+<h3>Panen TBS - Scan QR TPH</h3>
+
+<button onclick="mulaiScan()">▶ Mulai Scan QR TPH</button>
+<div class="status" id="status">Status: Kamera belum aktif</div>
+<div id="reader"></div>
+
+<input id="tph" placeholder="No TPH" readonly>
+<input id="kebun" placeholder="Kode Kebun">
+<input id="afd" placeholder="Afdeling">
+<input id="blok" placeholder="Blok">
+<input id="tgl" type="date">
+<input id="truk" placeholder="No Truk">
+<input id="janjang" placeholder="Jumlah Janjang">
+
+<button onclick="simpanPanen()">💾 Simpan Data Panen</button>
+<button onclick="buatQRPanen()">🧾 Buat QR Panen</button>
+<button onclick="printQRPanen()">🖨️ Print QR Panen</button>
+<button onclick="exportCSV()">📤 Export Excel</button>
+
+<div id="qrPanen"></div>
+
+<table id="data">
+<tr>
+<th>TPH</th><th>Kebun</th><th>Afdeling</th><th>Blok</th>
+<th>Tanggal</th><th>Truk</th><th>Janjang</th>
+</tr>
+</table>
+</div>
+
+<!-- AREA PRINT -->
+<div id="printArea">
+  <h3>QR PANEN TBS</h3>
+  <div id="qrPrint"></div>
+  <p id="infoPrint"></p>
+</div>
+
+<script>
+/* ================= STORAGE ================= */
+let dataPanen = JSON.parse(localStorage.getItem("PANEN_DATA")) || [];
+let tphUsed   = new Set(JSON.parse(localStorage.getItem("PANEN_TPH")) || []);
+
+/* ================= LOAD DATA ================= */
+window.onload = () => {
+  let table = document.getElementById("data");
+  dataPanen.forEach(d=>{
+    let r = table.insertRow(-1);
+    d.forEach(v=>r.insertCell(-1).innerText=v);
+  });
+};
+
+/* ================= SCAN ================= */
+let qrScanner = null;
+
+function mulaiScan(){
+  status.innerText = "Status: Mengaktifkan kamera...";
+  qrScanner = new Html5Qrcode("reader");
+
+  Html5Qrcode.getCameras().then(devices=>{
+    if(devices.length===0){
+      alert("Tidak ada kamera");
+      return;
+    }
+
+    qrScanner.start(
+      devices[0].id,
+      { fps:10, qrbox:250 },
+      text=>{
+        if(!text.startsWith("TPH=")){
+          alert("QR bukan TPH");
+          return;
+        }
+
+        let v = text.replace("TPH=","").trim();
+        if(tphUsed.has(v)){
+          alert("❌ TPH sudah dipakai");
+          return;
+        }
+
+        tph.value = v;
+        status.innerText = "Status: TPH berhasil discan";
+        qrScanner.stop();
+      }
+    );
+  }).catch(()=>{
+    alert("Browser tidak mengizinkan kamera");
+  });
+}
+
+/* ================= SIMPAN ================= */
+function simpanPanen(){
+  if(!tph.value || !kebun.value || !afd.value || !blok.value ||
+     !tgl.value || !truk.value || !janjang.value){
+    alert("Data belum lengkap");
+    return;
+  }
+
+  let row = [
+    tph.value, kebun.value, afd.value, blok.value,
+    tgl.value, truk.value, janjang.value
+  ];
+
+  dataPanen.push(row);
+  tphUsed.add(tph.value);
+
+  localStorage.setItem("PANEN_DATA", JSON.stringify(dataPanen));
+  localStorage.setItem("PANEN_TPH", JSON.stringify([...tphUsed]));
+
+  let t = document.getElementById("data");
+  let r = t.insertRow(-1);
+  row.forEach(v=>r.insertCell(-1).innerText=v);
+
+  alert("✅ Data panen tersimpan");
+}
+
+/* ================= QR PANEN ================= */
+function buatQRPanen(){
+  if(!tph.value){ alert("Scan TPH dulu"); return; }
+
+  let payload =
+    "PANEN|" +
+    "TPH="+tph.value +
+    "|KB="+kebun.value +
+    "|AFD="+afd.value +
+    "|BLK="+blok.value +
+    "|TGL="+tgl.value +
+    "|TRK="+truk.value +
+    "|JJG="+janjang.value;
+
+  qrPanen.innerHTML = "";
+  qrPrint.innerHTML = "";
+
+  new QRCode(qrPanen,{ text:payload, width:200, height:200 });
+  new QRCode(qrPrint,{ text:payload, width:260, height:260 });
+
+  infoPrint.innerHTML =
+    "TPH: "+tph.value+
+    "<br>TRUK: "+truk.value+
+    "<br>JANJANG: "+janjang.value+
+    "<br>TGL: "+tgl.value;
+}
+
+/* ================= EXPORT ================= */
+function exportCSV(){
+  if(dataPanen.length===0){
+    alert("Belum ada data");
+    return;
+  }
+
+  let csv = ["TPH,Kebun,Afdeling,Blok,Tanggal,Truk,Janjang"];
+  dataPanen.forEach(r=>csv.push(r.join(",")));
+
+  let blob = new Blob([csv.join("\n")],{type:"text/csv"});
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "PANEN_TBS.csv";
+  a.click();
+}
+</script>
+
+</body>
+</html>
