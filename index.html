@@ -138,26 +138,27 @@ function mulaiScan(){
       return;
     }
 
-    qrScanner.start(
-      devices[0].id,
-      { fps:10, qrbox:250 },
-      text=>{
-        if(!text.startsWith("TPH=")){
-          alert("QR bukan TPH");
-          return;
-        }
+  qrScanner.start(
+  { facingMode: "environment" },
+  { fps: 10, qrbox: 250 },
+  text => {
+    if(!text.startsWith("TPH=")){
+      alert("QR bukan TPH");
+      return;
+    }
 
-        let v = text.replace("TPH=","").trim();
-        if(tphUsed.has(v)){
-          alert("❌ TPH sudah dipakai");
-          return;
-        }
+    let v = text.replace("TPH=","").trim();
+    if(tphUsed.has(v)){
+      alert("❌ TPH sudah dipakai");
+      return;
+    }
 
-        tph.value = v;
-        status.innerText = "Status: TPH berhasil discan";
-        qrScanner.stop();
-      }
-    );
+    tph.value = v;
+    status.innerText = "Status: TPH berhasil discan";
+    qrScanner.stop();
+  }
+);
+    
   }).catch(()=>{
     alert("Browser tidak mengizinkan kamera");
   });
@@ -236,3 +237,4 @@ function exportCSV(){
 
 </body>
 </html>
+
